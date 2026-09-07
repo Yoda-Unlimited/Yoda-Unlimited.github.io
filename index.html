@@ -487,6 +487,13 @@ function renderLedger(d) {
   L.push(`  Years   : ${d.years}`);
   const cls = headline >= 0 ? 'pos' : 'neg';
   L.push(`  ${pad(label, 8)}: <span class="${cls}">${Number(headline).toFixed(2)}%</span>`);
+
+  // "2.4x in 12 years" lands harder than a percentage — it's the number people
+  // actually reason about when comparing one holding against another.
+  const mult = d.todays_value / d.total_invested;
+  const mcls = mult >= 1 ? 'pos' : 'neg';
+  L.push(`  Multiple: <span class="${mcls}">${mult.toFixed(2)}x</span> in ${Number(d.years).toFixed(2)} years`
+       + `  <span class="dim">(Rs. ${money(d.initial_investment)} → Rs. ${money(d.todays_value)})</span>`);
   L.push(RULE);
   return L.join('\n');
 }
