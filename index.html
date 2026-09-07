@@ -70,6 +70,38 @@
   .tip .sym { font-weight: 700; }
   .tip .co { color: var(--text-3); }
 
+  /* Ledger modal — deliberately a monospace terminal block, because it's the
+     same calculation the CLI prints and the alignment carries the meaning. */
+  .modal-back {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.72);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px; z-index: 50;
+  }
+  .modal-back[hidden] { display: none; }
+  .modal {
+    background: #0d1117; border: 1px solid var(--border); border-radius: 12px;
+    max-width: 860px; width: 100%; max-height: 86vh; overflow: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  }
+  .modal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; background: #0d1117;
+  }
+  .modal-head h2 { margin: 0; font-size: 15px; font-weight: 600; }
+  .modal-close {
+    background: none; border: 1px solid var(--border); color: var(--text-3);
+    border-radius: 7px; padding: 4px 11px; cursor: pointer; font: inherit; font-size: 13px;
+  }
+  .modal-close:hover { color: var(--text); border-color: var(--text-3); }
+  .ledger {
+    margin: 0; padding: 16px; font-size: 12px; line-height: 1.5;
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    white-space: pre; overflow-x: auto; color: #d7dee9;
+  }
+  .ledger .pos { color: #2edc6e; } .ledger .neg { color: #ff5a5a; }
+  .ledger .dim { color: var(--text-3); }
+
   footer { margin-top: 14px; font-size: 11.5px; color: var(--text-3); line-height: 1.6; }
   footer a { color: var(--accent); text-decoration: none; }
   footer a:hover { text-decoration: underline; }
@@ -128,6 +160,16 @@
     <canvas id="canvas"></canvas>
     <div class="status" id="status">Loading…</div>
     <div class="tip" id="tip" hidden></div>
+  </div>
+
+  <div class="modal-back" id="modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-head">
+        <h2 id="modal-title">—</h2>
+        <button class="modal-close" id="modal-close">Close ✕</button>
+      </div>
+      <pre class="ledger" id="ledger"></pre>
+    </div>
   </div>
 
   <footer>
@@ -343,6 +385,106 @@ canvas.addEventListener('touchstart', e => {
   if (hit) e.preventDefault();
   showTip(hit, mx, my);
 }, { passive: false });
+
+// ── Ledger modal ──────────────────────────────────────────────────────────
+// Reproduces the CLI's output character-for-character where it matters: the
+// point is that a viewer can audit the number, not just be told it.
+const detailCache = {};
+const modal = document.getElementById('modal');
+const ledgerEl = document.getElementById('ledger');
+
+const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+const money = n => Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const pad = (s, n) => String(s).padEnd(n);
+const padL = (s, n) => String(s).padStart(n);
+
+function renderLedger(d) {
+  const RULE = '='.repeat(60);
+  const isXirr = d.method === 'XIRR';
+  const headline = isXirr ? d.xirr_pct : d.cagr_pct;
+  const L = [];
+  L.push(RULE);
+  L.push(`  NEPSE ${d.method} Calculator  |  ${esc(d.name || '')}`);
+  L.push(RULE);
+  L.push(`  Requested start date : ${d.requested_start}`);
+  L.push(`  Actual start date    : ${d.start_date}  <span class="dim">(nearest trading day)</span>`);
+  L.push(`  Actual end date      : ${d.end_date}  <span class="dim">(last trading day in data)</span>`);
+  L.push(`  Price on start date  : Rs. ${money(d.start_price)}`);
+  L.push(`  Initial investment   : Rs. ${money(d.initial_investment)}`);
+  L.push(`  Units purchased      : ${d.units_bought} kitta`);
+  L.push('');
+  L.push(`  ${pad('Date', 14)} ${pad('Event', 35)} ${padL('Units After', 12)} ${padL('Cash Rs.', 12)}`);
+  L.push(`  ${'-'.repeat(75)}`);
+  L.push(`  ${pad(d.start_date, 14)} ${pad('Initial purchase', 35)} ${padL(Number(d.units_bought).toFixed(4), 12)} ${padL('', 12)}`);
+
+  for (const ev of d.events || []) {
+    let label;
+    if (ev.type === 'bonus') label = `Bonus ${(ev.pct * 100).toFixed(2)}%  [${ev.fiscal_year || ''}]`;
+    else if (ev.type === 'right') label = `Right share (${ev.ratio})  @ Rs.${ev.issue_price}`;
+    else label = `Cash div ${(ev.pct * 100).toFixed(4)}%  [${ev.fiscal_year || ''}]`;
+    const cash = ev.type === 'cash' ? money(ev.cash_rs) : (ev.type === 'right' ? money(ev.cost || 0) : '');
+    L.push(`  ${pad(ev.date, 14)} ${pad(label, 35)} ${padL(Number(ev.units_after).toFixed(4), 12)} ${padL(cash, 12)}`);
+  }
+
+  L.push('');
+  L.push(`  ${'─'.repeat(75)}`);
+  L.push(`  Latest price date       : ${d.end_date}  <span class="dim">(LTP: Rs. ${money(d.ltp)})</span>`);
+  L.push(`  Total units today       : ${d.total_units_today} kitta`);
+  L.push(`  Market value            : Rs. ${money(d.market_value)}  <span class="dim">(${d.total_units_today} × ${money(d.ltp)})</span>`);
+  L.push(`  Total cash dividends    : Rs. ${money(d.total_cash_dividends)}`);
+  L.push(`  Total right share cost  : Rs. ${money(d.total_right_share_cost)}`);
+  L.push(`  Today's Value           : Rs. ${money(d.todays_value)}`);
+  L.push('');
+
+  if (isXirr) {
+    L.push(`  ── XIRR Calculation ${'─'.repeat(41)}`);
+    L.push(`  <span class="dim">Formula : 0 = Sum( CF_i / (1+r)^((date_i - date_0)/365) )</span>`);
+    L.push(`  <span class="dim">          Rights mid-stream make this money-weighted, not CAGR.</span>`);
+  } else {
+    L.push(`  ── CAGR Calculation ${'─'.repeat(41)}`);
+    L.push(`  <span class="dim">Formula : (Today's Value / Total Invested)^(1/years) - 1</span>`);
+    L.push(`  Total invested          : Rs. ${money(d.total_invested)}  <span class="dim">(initial + right share cost)</span>`);
+    L.push(`  <span class="dim">        : (${money(d.todays_value)} / ${money(d.total_invested)})^(1/${d.years}) - 1</span>`);
+  }
+  L.push('');
+  L.push(`  Years   : ${d.years}`);
+  const cls = headline >= 0 ? 'pos' : 'neg';
+  L.push(`  ${d.method}    : <span class="${cls}">${headline >= 0 ? '+' : ''}${Number(headline).toFixed(2)}%</span>`);
+  if (!d.is_annualised) {
+    L.push(`  <span class="dim">Board shows total return for this window (not annualised): ${d.display_pct >= 0 ? '+' : ''}${d.display_pct}%</span>`);
+  }
+  L.push(RULE);
+  return L.join('\n');
+}
+
+async function openLedger(node) {
+  if (mode === 'mc') return;   // market cap is a snapshot, it has no ledger
+  document.getElementById('modal-title').textContent = `${node.symbol} · ${period.toUpperCase()}`;
+  ledgerEl.textContent = 'Loading…';
+  modal.hidden = false;
+  try {
+    if (!detailCache[period]) {
+      const resp = await fetch(`data/details_${period}.json`, { cache: 'no-cache' });
+      detailCache[period] = await resp.json();
+    }
+    const d = detailCache[period][node.symbol];
+    if (!d) { ledgerEl.textContent = 'No breakdown available for this stock.'; return; }
+    ledgerEl.innerHTML = renderLedger(d);
+  } catch (err) {
+    ledgerEl.textContent = 'Could not load the breakdown.';
+  }
+}
+
+function closeLedger() { modal.hidden = true; }
+document.getElementById('modal-close').addEventListener('click', closeLedger);
+modal.addEventListener('click', e => { if (e.target === modal) closeLedger(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLedger(); });
+
+canvas.addEventListener('click', e => {
+  const r = canvas.getBoundingClientRect();
+  const hit = hitTest(e.clientX - r.left, e.clientY - r.top);
+  if (hit) openLedger(hit);
+});
 
 document.getElementById('period-toggle').addEventListener('click', e => {
   const btn = e.target.closest('button');
