@@ -23,6 +23,7 @@
   * { box-sizing: border-box; }
   body {
     margin: 0;
+    overflow-x: hidden;   /* nothing here should ever scroll sideways */
     background: var(--bg);
     color: var(--text);
     font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -35,10 +36,12 @@
   .sub strong { color: var(--text); font-weight: 600; }
 
   .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+  /* fit-content alone lets 17 buttons push the row wider than a phone
+     viewport, which drags the whole page sideways — cap it at the viewport. */
   .toggle {
     display: flex; flex-wrap: wrap; gap: 2px;
     background: var(--panel); border: 1px solid var(--border);
-    border-radius: 8px; padding: 3px; width: fit-content;
+    border-radius: 8px; padding: 3px; width: fit-content; max-width: 100%;
   }
   .toggle button {
     background: none; border: none; color: var(--text-3);
@@ -116,10 +119,26 @@
   }
   .up { border-color: #2edc6e; } .down { border-color: #ff2d2d; } .neutral { border-color: #5b9cff; }
 
+  /* Must match LEDGER_MIN_WIDTH in the script — below it there's no ledger,
+     so never show a prompt for a click that won't do anything. */
+  @media (max-width: 767px) {
+    /* Needs .legend to outrank `.legend span { display: inline-flex }` — a
+       bare .hint loses on specificity and the prompt stays visible. */
+    .legend .hint { display: none; }
+  }
+
   @media (max-width: 640px) {
+    .wrap { padding: 14px 12px 24px; }
     h1 { font-size: 18px; }
+    .sub { font-size: 12px; }
     .stage { height: 68vh; min-height: 380px; }
-    .toggle button { padding: 5px 9px; font-size: 12px; }
+    .toggle button { padding: 5px 8px; font-size: 12px; }
+    .legend { gap: 10px; font-size: 12px; }
+    /* The ledger is fixed-width monospace, so on a phone it has to shrink to
+       stay readable rather than forcing a sideways drag to see the numbers. */
+    .ledger { font-size: 9.5px; padding: 12px 10px; }
+    .modal { max-height: 92vh; }
+    .modal-head h2 { font-size: 14px; }
   }
 </style>
 </head>
@@ -410,11 +429,12 @@ function renderLedger(d) {
   const headline = isXirr ? d.xirr_pct : d.cagr_pct;
   const L = [];
   L.push(RULE);
-  L.push(`  NEPSE ${d.method} Calculator  |  ${esc(d.name || '')}`);
+  L.push(`  NEPSE ${d.method} Calculator  |  ${esc(d.symbol || '')}`);
   L.push(RULE);
   L.push(`  Requested start date : ${d.requested_start}`);
   L.push(`  Actual start date    : ${d.start_date}  <span class="dim">(nearest trading day)</span>`);
-  L.push(`  Actual end date      : ${d.end_date}  <span class="dim">(last trading day in data)</span>`);
+  L.push(`  Requested end date   : ${d.requested_end}`);
+  L.push(`  Actual end date      : ${d.end_date}  <span class="dim">(nearest trading day)</span>`);
   L.push(`  Price on start date  : Rs. ${money(d.start_price)}`);
   L.push(`  Initial investment   : Rs. ${money(d.initial_investment)}`);
   L.push(`  Units purchased      : ${d.units_bought} kitta`);
@@ -455,15 +475,19 @@ function renderLedger(d) {
   L.push('');
   L.push(`  Years   : ${d.years}`);
   const cls = headline >= 0 ? 'pos' : 'neg';
-  L.push(`  ${d.method}    : <span class="${cls}">${headline >= 0 ? '+' : ''}${Number(headline).toFixed(2)}%</span>`);
-  if (!d.is_annualised) {
-    L.push(`  <span class="dim">Board shows total return for this window (not annualised): ${d.display_pct >= 0 ? '+' : ''}${d.display_pct}%</span>`);
-  }
+  L.push(`  ${pad(d.method, 8)}: <span class="${cls}">${Number(headline).toFixed(2)}%</span>`);
   L.push(RULE);
   return L.join('\n');
 }
 
+// The ledger is a fixed-width terminal block — it only reads properly with
+// room for its 75 columns, so it's for tablets and up. Phones get the tap
+// tooltip instead. Kept in JS as well as CSS so a phone tap can't open it.
+const LEDGER_MIN_WIDTH = 768;
+const ledgerAvailable = () => window.innerWidth >= LEDGER_MIN_WIDTH;
+
 async function openLedger(node) {
+  if (!ledgerAvailable()) return;
   if (mode === 'mc') return;   // market cap is a snapshot, it has no ledger
   document.getElementById('modal-title').textContent = `${node.symbol} · ${period.toUpperCase()}`;
   ledgerEl.textContent = 'Loading…';
