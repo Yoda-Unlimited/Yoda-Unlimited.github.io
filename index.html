@@ -425,11 +425,16 @@ const padL = (s, n) => String(s).padStart(n);
 
 function renderLedger(d) {
   const RULE = '='.repeat(60);
-  const isXirr = d.method === 'XIRR';
-  const headline = isXirr ? d.xirr_pct : d.cagr_pct;
+  // Under a year, annualising is noise — a 3-month move stretched to a yearly
+  // rate says nothing useful. Those windows report the plain total return, and
+  // CAGR/XIRR is reserved for periods where compounding actually means something.
+  const annualised = !!d.is_annualised;
+  const isXirr = annualised && d.method === 'XIRR';
+  const label = annualised ? d.method : 'Return';
+  const headline = annualised ? (isXirr ? d.xirr_pct : d.cagr_pct) : d.display_pct;
   const L = [];
   L.push(RULE);
-  L.push(`  NEPSE ${d.method} Calculator  |  ${esc(d.symbol || '')}`);
+  L.push(`  NEPSE ${label} Calculator  |  ${esc(d.symbol || '')}`);
   L.push(RULE);
   L.push(`  Requested start date : ${d.requested_start}`);
   L.push(`  Actual start date    : ${d.start_date}  <span class="dim">(nearest trading day)</span>`);
@@ -466,16 +471,22 @@ function renderLedger(d) {
     L.push(`  ── XIRR Calculation ${'─'.repeat(41)}`);
     L.push(`  <span class="dim">Formula : 0 = Sum( CF_i / (1+r)^((date_i - date_0)/365) )</span>`);
     L.push(`  <span class="dim">          Rights mid-stream make this money-weighted, not CAGR.</span>`);
-  } else {
+  } else if (annualised) {
     L.push(`  ── CAGR Calculation ${'─'.repeat(41)}`);
     L.push(`  <span class="dim">Formula : (Today's Value / Total Invested)^(1/years) - 1</span>`);
     L.push(`  Total invested          : Rs. ${money(d.total_invested)}  <span class="dim">(initial + right share cost)</span>`);
     L.push(`  <span class="dim">        : (${money(d.todays_value)} / ${money(d.total_invested)})^(1/${d.years}) - 1</span>`);
+  } else {
+    L.push(`  ── Return Calculation ${'─'.repeat(39)}`);
+    L.push(`  <span class="dim">Formula : (Today's Value / Total Invested) - 1</span>`);
+    L.push(`  Total invested          : Rs. ${money(d.total_invested)}  <span class="dim">(initial + right share cost)</span>`);
+    L.push(`  <span class="dim">        : (${money(d.todays_value)} / ${money(d.total_invested)}) - 1</span>`);
+    L.push(`  <span class="dim">Under a year — total return, not annualised.</span>`);
   }
   L.push('');
   L.push(`  Years   : ${d.years}`);
   const cls = headline >= 0 ? 'pos' : 'neg';
-  L.push(`  ${pad(d.method, 8)}: <span class="${cls}">${Number(headline).toFixed(2)}%</span>`);
+  L.push(`  ${pad(label, 8)}: <span class="${cls}">${Number(headline).toFixed(2)}%</span>`);
   L.push(RULE);
   return L.join('\n');
 }
