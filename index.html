@@ -108,6 +108,12 @@
   .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; align-items: center; }
   .legend span { display: inline-flex; align-items: center; gap: 6px; }
   .dot { width: 9px; height: 9px; border-radius: 50%; border: 2px solid; }
+  /* The ledger is the point of the site, not a hidden extra — say so plainly. */
+  .hint {
+    color: var(--text); background: rgba(91,156,255,0.12);
+    border: 1px solid rgba(91,156,255,0.35); border-radius: 999px;
+    padding: 3px 11px; font-size: 12px; font-weight: 500;
+  }
   .up { border-color: #2edc6e; } .down { border-color: #ff2d2d; } .neutral { border-color: #5b9cff; }
 
   @media (max-width: 640px) {
@@ -153,7 +159,7 @@
     <span><i class="dot up"></i> Gain</span>
     <span><i class="dot down"></i> Loss</span>
     <span><i class="dot neutral"></i> Market cap share</span>
-    <span style="color:var(--text-3)">Tap or hover a bubble for details</span>
+    <span class="hint">👆 Click a bubble to see calculations</span>
   </div>
 
   <div class="stage">
