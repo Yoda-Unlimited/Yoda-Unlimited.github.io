@@ -146,6 +146,13 @@
     .modal { max-height: 92vh; }
     .modal-head h2 { font-size: 14px; }
   }
+  /* Visually hidden but present in the accessibility tree — the canvas chart
+     has no text form of its own, so screen readers and agentic browsers get
+     this table instead. */
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
 </style>
 </head>
 <body>
@@ -189,10 +196,18 @@
   </div>
 
   <div class="stage">
-    <canvas id="canvas"></canvas>
+    <canvas id="canvas" role="img" aria-label="Bubble chart of NEPSE stocks; the same data is in the table below"></canvas>
     <div class="status" id="status">Loading…</div>
     <div class="tip" id="tip" hidden></div>
   </div>
+
+  <table class="sr-only" id="sr-data-table">
+    <caption>NEPSE stocks shown as bubbles above, in text form</caption>
+    <thead>
+      <tr><th scope="col">Symbol</th><th scope="col">Name</th><th scope="col">Price</th><th scope="col" id="sr-data-metric-header">Return</th></tr>
+    </thead>
+    <tbody id="sr-data-body"></tbody>
+  </table>
 
   <div class="modal-back" id="modal" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
@@ -270,6 +285,19 @@ function build(rows) {
     vx: 0, vy: 0,
   }));
   sizeRadii();
+  renderSrTable();
+}
+
+// Text mirror of the canvas for screen readers and agentic browsers — the
+// canvas itself exposes nothing but a description without this.
+function renderSrTable() {
+  const header = document.getElementById('sr-data-metric-header');
+  header.textContent = mode === 'mc' ? 'Market cap share' : (nodes[0] && nodes[0].isCagr ? 'CAGR' : 'Return');
+  const body = document.getElementById('sr-data-body');
+  body.innerHTML = nodes.map(n => {
+    const pctStr = (n.pct >= 0 ? '+' : '') + n.pct.toFixed(2) + '%';
+    return `<tr><td>${n.symbol}</td><td>${n.name}</td><td>${n.price != null ? n.price : '—'}</td><td>${pctStr}</td></tr>`;
+  }).join('');
 }
 
 // Radius ∝ sqrt(metric), scaled so the pack covers a fixed share of the frame.
