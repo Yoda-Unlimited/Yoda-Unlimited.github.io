@@ -8,6 +8,11 @@
 <meta property="og:title" content="NEPSE Bubbles">
 <meta property="og:description" content="The 75 biggest movers on the Nepal Stock Exchange, 1 day to 12 years. Bonus, dividend and rights adjusted.">
 <meta property="og:type" content="website">
+<meta property="og:image" content="https://yoda-unlimited.github.io/og-preview.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="NEPSE Bubbles">
+<meta name="twitter:description" content="The 75 biggest movers on the Nepal Stock Exchange, 1 day to 12 years. Bonus, dividend and rights adjusted.">
+<meta name="twitter:image" content="https://yoda-unlimited.github.io/og-preview.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -238,7 +243,7 @@ async function load(p) {
   statusEl.textContent = 'Loading…';
   statusEl.style.display = 'flex';
   try {
-    const resp = await fetch(`data/bubbles_${p}.json`, { cache: 'no-cache' });
+    const resp = await fetch(`data/bubbles_${p}.json`);
     if (!resp.ok) throw new Error(`${resp.status}`);
     const json = await resp.json();
     build(json.data || []);
@@ -514,7 +519,7 @@ async function openLedger(node) {
   modal.hidden = false;
   try {
     if (!detailCache[period]) {
-      const resp = await fetch(`data/details_${period}.json`, { cache: 'no-cache' });
+      const resp = await fetch(`data/details_${period}.json`);
       detailCache[period] = await resp.json();
     }
     const d = detailCache[period][node.symbol];
@@ -556,7 +561,7 @@ window.addEventListener('resize', () => { sizeCanvas(); sizeRadii(); });
 sizeCanvas();
 load(period);
 
-fetch('data/manifest.json', { cache: 'no-cache' })
+fetch('data/manifest.json')
   .then(r => r.json())
   .then(m => {
     const el = document.getElementById('freshness');
