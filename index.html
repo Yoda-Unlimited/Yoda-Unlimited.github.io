@@ -182,6 +182,21 @@
      (landscape phones, 320px-wide handsets): drop the footer's sourcing line
      and tighten the blurb. The freshness stamp and "Not investment advice"
      stay — those are the two lines that have to remain visible. */
+  /* Phones: the chrome was eating ~60% of the screen and leaving the chart a
+     letterbox strip. The 17-period row scrolls sideways instead of wrapping to
+     three lines, and the long blurb drops — the chart is the point on a phone. */
+  @media (max-width: 640px), (max-height: 480px) {
+    .toggle {
+      flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+      -webkit-overflow-scrolling: touch; width: 100%;
+    }
+    .toggle::-webkit-scrollbar { display: none; }
+    .toggle button { flex: 0 0 auto; }
+    .sub-long { display: none; }
+    .sub { margin-bottom: 10px; }
+    .controls { margin-bottom: 10px; }
+  }
+
   @media (max-height: 620px), (max-width: 340px) {
     .stage { min-height: min(380px, 36dvh); }
     .sub { font-size: 11px; margin: 2px 0 8px; }
@@ -202,9 +217,9 @@
     <h1>🫧 NEPSE Bubbles</h1>
   </header>
   <div class="sub" id="subtitle">
-    The <strong>75 biggest movers</strong> on the Nepal Stock Exchange — bubble size is the size of the move, green is up, red is down.
-    Returns are adjusted for bonus shares, cash dividends and rights, and annualised (CAGR) for periods over one year.
-    <br><span class="update-note">Data updates daily after NEPSE market close, Mon–Fri.</span>
+    The <strong><span id="sub-count">75</span> biggest movers</strong> on the Nepal Stock Exchange — bubble size is the size of the move, green is up, red is down.
+    <span class="sub-long">Returns are adjusted for bonus shares, cash dividends and rights, and annualised (CAGR) for periods over one year.
+    <br></span><span class="update-note sub-long">Data updates daily after NEPSE market close, Mon–Fri.</span>
   </div>
 
   <div class="controls">
@@ -312,8 +327,23 @@ async function load(p) {
   }
 }
 
+// 75 bubbles in a phone-sized canvas leaves each one too small to label. Cap
+// the count by canvas area instead, so a phone shows fewer, bigger, readable
+// bubbles and a desktop still shows the full 75.
+let lastRows = [];
+function bubbleCap() {
+  const area = W() * H();
+  if (area < 100000) return 30;   // phone portrait / landscape strip
+  if (area < 220000) return 45;   // small tablet, short laptop window
+  return 75;
+}
+
 function build(rows) {
-  nodes = rows.slice(0, 75).map(r => ({
+  lastRows = rows;
+  const cap = bubbleCap();
+  const countEl = document.getElementById('sub-count');
+  if (countEl) countEl.textContent = String(Math.min(cap, rows.length));
+  nodes = rows.slice(0, cap).map(r => ({
     symbol: r.symbol,
     name: (r.name || '').replace(/\s+/g, ' ').trim(),
     price: r.price,
@@ -336,8 +366,10 @@ function build(rows) {
 function renderSrTable() {
   const header = document.getElementById('sr-data-metric-header');
   header.textContent = mode === 'mc' ? 'Market cap share' : (nodes[0] && nodes[0].isCagr ? 'CAGR' : 'Return');
+  const toNode = r => ({ symbol: r.symbol, name: (r.name || '').replace(/\s+/g, ' ').trim(), price: r.price, pct: r.is_mc ? r.mc_share_pct : r.cagr_pct });
   const body = document.getElementById('sr-data-body');
-  body.innerHTML = nodes.map(n => {
+  const srRows = lastRows.length ? lastRows.map(toNode) : nodes;
+  body.innerHTML = srRows.map(n => {
     const pctStr = (n.pct >= 0 ? '+' : '') + n.pct.toFixed(2) + '%';
     return `<tr><td>${n.symbol}</td><td>${n.name}</td><td>${n.price != null ? n.price : '—'}</td><td>${pctStr}</td></tr>`;
   }).join('');
@@ -617,6 +649,8 @@ document.getElementById('period-toggle').addEventListener('click', e => {
   if (!btn) return;
   document.querySelectorAll('#period-toggle button').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  // The row scrolls sideways on a phone, so keep the chosen period in view.
+  btn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   if (btn.dataset.period) {
     mode = 'period'; period = btn.dataset.period;
     load(period);
@@ -626,7 +660,13 @@ document.getElementById('period-toggle').addEventListener('click', e => {
   }
 });
 
-window.addEventListener('resize', () => { sizeCanvas(); sizeRadii(); });
+window.addEventListener('resize', () => {
+  sizeCanvas();
+  // Rotating a phone can move it across a cap boundary — rebuild in that case,
+  // otherwise just rescale the pack to the new frame.
+  if (lastRows.length && bubbleCap() !== nodes.length && bubbleCap() <= lastRows.length) build(lastRows);
+  else sizeRadii();
+});
 
 // ── Boot ──────────────────────────────────────────────────────────────────
 sizeCanvas();
