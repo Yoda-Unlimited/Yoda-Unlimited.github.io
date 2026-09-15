@@ -405,8 +405,17 @@ function sizeRadii() {
 }
 
 function step() {
-  const cx = W() / 2, cy = H() / 2;
   tick += 1;
+  // Don't trust any single browser's resize reporting. Brave on iOS keeps its
+  // own toolbar and can change the box without the observer landing where
+  // Safari's does, so twice a second compare the real box against what the
+  // canvas was sized for and re-measure if they have drifted apart. Cheap, and
+  // it self-heals whatever a given browser fails to announce.
+  if (tick % 30 === 0) {
+    const r = canvas.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0 && (Math.abs(r.width - W()) > 1 || Math.abs(r.height - H()) > 1)) relayout();
+  }
+  const cx = W() / 2, cy = H() / 2;
   const t = tick * 0.008;
   for (const a of nodes) {
     a.vx += Math.cos(t + a.phase) * 0.018 + (cx - a.x) * 0.00006;
@@ -708,6 +717,8 @@ new ResizeObserver(scheduleRelayout).observe(canvas.parentElement);
 window.addEventListener('resize', scheduleRelayout);
 // Older iOS can settle a frame or two after the observer fires; a late re-check
 // costs nothing and catches the toolbar collapsing on rotation too.
+window.addEventListener('pageshow', scheduleRelayout);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleRelayout(); });
 window.addEventListener('orientationchange', () => {
   scheduleRelayout();
   setTimeout(relayout, 250);
