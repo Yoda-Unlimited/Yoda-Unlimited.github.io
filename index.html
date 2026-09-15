@@ -197,6 +197,24 @@
     .controls { margin-bottom: 10px; }
   }
 
+  /* Landscape phone: only ~330px of height, and the chart wants a squarish
+     frame, so every row of chrome costs it badly (the header, blurb and legend
+     together were 63% of the screen). Go chart-first — the title is in the tab,
+     the legend is green-up/red-down which the chart itself shows, and the
+     freshness line moves next to the periods where it costs nothing. The
+     disclaimer stays. Side padding clears the notch. */
+  @media (orientation: landscape) and (max-height: 480px) {
+    header, .sub, .legend { display: none; }
+    .wrap {
+      padding-top: 8px; padding-bottom: 6px;
+      padding-left: max(14px, env(safe-area-inset-left));
+      padding-right: max(14px, env(safe-area-inset-right));
+    }
+    .controls { margin-bottom: 8px; }
+    footer { margin-top: 6px; font-size: 10px; line-height: 1.35; }
+    #freshness { display: none; }
+  }
+
   @media (max-height: 620px), (max-width: 340px) {
     .stage { min-height: min(380px, 36dvh); }
     .sub { font-size: 11px; margin: 2px 0 8px; }
@@ -334,7 +352,7 @@ let lastRows = [];
 function bubbleCap() {
   const area = W() * H();
   if (area < 100000) return 30;   // phone portrait / landscape strip
-  if (area < 220000) return 45;   // small tablet, short laptop window
+  if (area < 320000) return 45;   // big phone landscape, small tablet window
   return 75;
 }
 
