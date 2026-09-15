@@ -678,12 +678,40 @@ document.getElementById('period-toggle').addEventListener('click', e => {
   }
 });
 
-window.addEventListener('resize', () => {
+function relayout() {
   sizeCanvas();
+  if (!W() || !H()) return;
   // Rotating a phone can move it across a cap boundary — rebuild in that case,
   // otherwise just rescale the pack to the new frame.
   if (lastRows.length && bubbleCap() !== nodes.length && bubbleCap() <= lastRows.length) build(lastRows);
   else sizeRadii();
+  // Positions were laid out in the old frame; pull anything now outside the new
+  // one back in, or a rotation leaves bubbles stranded off-screen.
+  nodes.forEach(n => {
+    n.x = Math.min(Math.max(n.x, n.r), Math.max(n.r, W() - n.r));
+    n.y = Math.min(Math.max(n.y, n.r), Math.max(n.r, H() - n.r));
+  });
+}
+
+// iOS Safari fires `resize` on rotation before the new layout has settled, so
+// the canvas got its backing store sized from the OLD box and the browser then
+// stretched that bitmap into the new one — circles came out as ovals until a
+// reload. A ResizeObserver on the stage reports the box after layout, which is
+// the only measurement worth trusting here.
+let relayoutPending = false;
+const scheduleRelayout = () => {
+  if (relayoutPending) return;
+  relayoutPending = true;
+  requestAnimationFrame(() => { relayoutPending = false; relayout(); });
+};
+new ResizeObserver(scheduleRelayout).observe(canvas.parentElement);
+window.addEventListener('resize', scheduleRelayout);
+// Older iOS can settle a frame or two after the observer fires; a late re-check
+// costs nothing and catches the toolbar collapsing on rotation too.
+window.addEventListener('orientationchange', () => {
+  scheduleRelayout();
+  setTimeout(relayout, 250);
+  setTimeout(relayout, 600);
 });
 
 // ── Boot ──────────────────────────────────────────────────────────────────
