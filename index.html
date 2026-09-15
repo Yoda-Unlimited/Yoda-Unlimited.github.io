@@ -26,7 +26,6 @@
     --accent: #5b9cff;
   }
   * { box-sizing: border-box; }
-  html, body { height: 100%; }
   body {
     margin: 0;
     overflow-x: hidden;   /* nothing here should ever scroll sideways */
@@ -35,15 +34,7 @@
     font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     -webkit-font-smoothing: antialiased;
   }
-  /* Stage used to be a fixed vh on top of header/controls/footer, so their
-     heights stacked and pushed the page well past one screen. Flex column
-     filling the real (dynamic) viewport height makes the stage absorb
-     whatever space is left instead of adding to it. */
-  .wrap {
-    max-width: 1700px; margin: 0 auto; padding: 20px 18px 32px;
-    min-height: 100vh; min-height: 100dvh;
-    display: flex; flex-direction: column;
-  }
+  .wrap { max-width: 1700px; margin: 0 auto; padding: 20px 18px 32px; }
   header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
   h1 { font-size: 22px; font-weight: 700; margin: 0; letter-spacing: -0.2px; }
   .sub { font-size: 12.5px; color: var(--text-3); line-height: 1.5; margin: 6px 0 16px; }
@@ -69,7 +60,7 @@
   #mc-btn { margin-left: 6px; border-left: 1px solid var(--border); padding-left: 12px; border-radius: 0 6px 6px 0; }
 
   .stage {
-    position: relative; width: 100%; flex: 1 1 auto; min-height: 380px;
+    position: relative; width: 100%; height: 74vh; min-height: 460px;
     background: #000; border: 1px solid var(--border);
     border-radius: 14px; overflow: hidden; touch-action: pan-y;
   }
@@ -146,7 +137,7 @@
     .wrap { padding: 14px 12px 24px; }
     h1 { font-size: 18px; }
     .sub { font-size: 12px; }
-    .stage { min-height: 320px; }
+    .stage { height: 68vh; min-height: 380px; }
     .toggle button { padding: 5px 8px; font-size: 12px; }
     .legend { gap: 10px; font-size: 12px; }
     /* The ledger is fixed-width monospace, so on a phone it has to shrink to
@@ -210,15 +201,13 @@
     <div class="tip" id="tip" hidden></div>
   </div>
 
-  <div class="sr-only">
-  <table id="sr-data-table">
+  <table class="sr-only" id="sr-data-table">
     <caption>NEPSE stocks shown as bubbles above, in text form</caption>
     <thead>
       <tr><th scope="col">Symbol</th><th scope="col">Name</th><th scope="col">Price</th><th scope="col" id="sr-data-metric-header">Return</th></tr>
     </thead>
     <tbody id="sr-data-body"></tbody>
   </table>
-  </div>
 
   <div class="modal-back" id="modal" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
