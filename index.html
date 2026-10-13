@@ -555,86 +555,9 @@ const detailCache = {};
 const modal = document.getElementById('modal');
 const ledgerEl = document.getElementById('ledger');
 
-const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-const money = n => Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const pad = (s, n) => String(s).padEnd(n);
-const padL = (s, n) => String(s).padStart(n);
-
-function renderLedger(d) {
-  const RULE = '='.repeat(60);
-  // Under a year, annualising is noise — a 3-month move stretched to a yearly
-  // rate says nothing useful. Those windows report the plain total return, and
-  // CAGR/XIRR is reserved for periods where compounding actually means something.
-  const annualised = !!d.is_annualised;
-  const isXirr = annualised && d.method === 'XIRR';
-  const label = annualised ? d.method : 'Return';
-  const headline = annualised ? (isXirr ? d.xirr_pct : d.cagr_pct) : d.display_pct;
-  const L = [];
-  L.push(RULE);
-  L.push(`  NEPSE ${label} Calculator  |  ${esc(d.symbol || '')}`);
-  L.push(RULE);
-  L.push(`  Requested start date : ${d.requested_start}`);
-  L.push(`  Actual start date    : ${d.start_date}  <span class="dim">(nearest trading day)</span>`);
-  L.push(`  Requested end date   : ${d.requested_end}`);
-  L.push(`  Actual end date      : ${d.end_date}  <span class="dim">(nearest trading day)</span>`);
-  L.push(`  Price on start date  : Rs. ${money(d.start_price)}`);
-  L.push(`  Initial investment   : Rs. ${money(d.initial_investment)}`);
-  L.push(`  Units purchased      : ${d.units_bought} kitta`);
-  L.push('');
-  L.push(`  ${pad('Date', 14)} ${pad('Event', 35)} ${padL('Units After', 12)} ${padL('Cash Rs.', 12)}`);
-  L.push(`  ${'-'.repeat(75)}`);
-  L.push(`  ${pad(d.start_date, 14)} ${pad('Initial purchase', 35)} ${padL(Number(d.units_bought).toFixed(4), 12)} ${padL('', 12)}`);
-
-  for (const ev of d.events || []) {
-    let label;
-    if (ev.type === 'bonus') label = `Bonus ${(ev.pct * 100).toFixed(2)}%  [${ev.fiscal_year || ''}]`;
-    else if (ev.type === 'right') label = `Right share (${ev.ratio})  @ Rs.${ev.issue_price}`;
-    else label = `Cash div ${(ev.pct * 100).toFixed(4)}%  [${ev.fiscal_year || ''}]`;
-    const cash = ev.type === 'cash' ? money(ev.cash_rs) : (ev.type === 'right' ? money(ev.cost || 0) : '');
-    L.push(`  ${pad(ev.date, 14)} ${pad(label, 35)} ${padL(Number(ev.units_after).toFixed(4), 12)} ${padL(cash, 12)}`);
-  }
-
-  L.push('');
-  L.push(`  ${'─'.repeat(75)}`);
-  L.push(`  Latest price date       : ${d.end_date}  <span class="dim">(LTP: Rs. ${money(d.ltp)})</span>`);
-  L.push(`  Total units today       : ${d.total_units_today} kitta`);
-  L.push(`  Market value            : Rs. ${money(d.market_value)}  <span class="dim">(${d.total_units_today} × ${money(d.ltp)})</span>`);
-  L.push(`  Total cash dividends    : Rs. ${money(d.total_cash_dividends)}`);
-  L.push(`  Total right share cost  : Rs. ${money(d.total_right_share_cost)}`);
-  L.push(`  Today's Value           : Rs. ${money(d.todays_value)}`);
-  L.push('');
-
-  if (isXirr) {
-    L.push(`  ── XIRR Calculation ${'─'.repeat(41)}`);
-    L.push(`  <span class="dim">Formula : 0 = Sum( CF_i / (1+r)^((date_i - date_0)/365) )</span>`);
-    L.push(`  <span class="dim">          Rights mid-stream make this money-weighted, not CAGR.</span>`);
-  } else if (annualised) {
-    L.push(`  ── CAGR Calculation ${'─'.repeat(41)}`);
-    L.push(`  <span class="dim">Formula : (Today's Value / Total Invested)^(1/years) - 1</span>`);
-    L.push(`  Total invested          : Rs. ${money(d.total_invested)}  <span class="dim">(initial + right share cost)</span>`);
-    L.push(`  <span class="dim">        : (${money(d.todays_value)} / ${money(d.total_invested)})^(1/${d.years}) - 1</span>`);
-  } else {
-    L.push(`  ── Return Calculation ${'─'.repeat(39)}`);
-    L.push(`  <span class="dim">Formula : (Today's Value / Total Invested) - 1</span>`);
-    L.push(`  Total invested          : Rs. ${money(d.total_invested)}  <span class="dim">(initial + right share cost)</span>`);
-    L.push(`  <span class="dim">        : (${money(d.todays_value)} / ${money(d.total_invested)}) - 1</span>`);
-    L.push(`  <span class="dim">Under a year — total return, not annualised.</span>`);
-  }
-  L.push('');
-  L.push(`  Years   : ${d.years}`);
-  const cls = headline >= 0 ? 'pos' : 'neg';
-  L.push(`  ${pad(label, 8)}: <span class="${cls}">${Number(headline).toFixed(2)}%</span>`);
-
-  // "2.4x in 12 years" lands harder than a percentage — it's the number people
-  // actually reason about when comparing one holding against another.
-  const mult = d.todays_value / d.total_invested;
-  const mcls = mult >= 1 ? 'pos' : 'neg';
-  L.push(`  Multiple: <span class="${mcls}">${mult.toFixed(2)}x</span> in ${Number(d.years).toFixed(2)} years`
-       + `  <span class="dim">(Rs. ${money(d.initial_investment)} → Rs. ${money(d.todays_value)})</span>`);
-  L.push(RULE);
-  return L.join('\n');
-}
-
+// The ledger text is built once, in cagr_ledger.py, and ships in the details
+// JSON as ledger_html — the same block the terminal script and the extension
+// show. Wording or layout changes belong there, not here.
 // The ledger is a fixed-width terminal block — it only reads properly with
 // room for its 75 columns, so it's for tablets and up. Phones get the tap
 // tooltip instead. Kept in JS as well as CSS so a phone tap can't open it.
@@ -654,7 +577,8 @@ async function openLedger(node) {
     }
     const d = detailCache[period][node.symbol];
     if (!d) { ledgerEl.textContent = 'No breakdown available for this stock.'; return; }
-    ledgerEl.innerHTML = renderLedger(d);
+    if (!d.ledger_html) { ledgerEl.textContent = 'Breakdown not built yet. It returns with the next nightly update.'; return; }
+    ledgerEl.innerHTML = d.ledger_html;
   } catch (err) {
     ledgerEl.textContent = 'Could not load the breakdown.';
   }
